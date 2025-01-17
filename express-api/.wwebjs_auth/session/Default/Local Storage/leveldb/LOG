@@ -1,0 +1,30 @@
+2025/01/16-16:37:06.464 a603 Reusing MANIFEST /Users/arthurhaliski/Documents/llm-answer-engine/express-api/.wwebjs_auth/session/Default/Local Storage/leveldb/MANIFEST-000001
+2025/01/16-16:37:06.465 a603 Recovering log #10
+2025/01/16-16:37:06.467 a603 Reusing old log /Users/arthurhaliski/Documents/llm-answer-engine/express-api/.wwebjs_auth/session/Default/Local Storage/leveldb/000010.log 
+2025/01/16-19:51:22.132 11f13 Level-0 table #14: started
+2025/01/16-19:51:22.137 11f13 Level-0 table #14: 13996 bytes OK
+2025/01/16-19:51:22.144 11f13 Delete type=0 #10
+2025/01/16-22:38:51.957 1203f Level-0 table #16: started
+2025/01/16-22:38:51.963 1203f Level-0 table #16: 14324 bytes OK
+2025/01/16-22:38:51.970 1203f Delete type=0 #13
+2025/01/16-23:39:29.296 1f1d3 Level-0 table #18: started
+2025/01/16-23:39:29.303 1f1d3 Level-0 table #18: 13862 bytes OK
+2025/01/16-23:39:29.312 1f1d3 Delete type=0 #15
+2025/01/16-23:39:29.314 1f1d3 Compacting 4@0 + 1@1 files
+2025/01/16-23:39:29.318 1f1d3 Generated table #19@0: 33 keys, 3193 bytes
+2025/01/16-23:39:29.318 1f1d3 Compacted 4@0 + 1@1 files => 3193 bytes
+2025/01/16-23:39:29.322 1f1d3 compacted to: files[ 0 1 1 0 0 0 0 ]
+2025/01/16-23:39:29.323 1f1d3 Delete type=2 #14
+2025/01/16-23:39:29.323 1f1d3 Delete type=2 #16
+2025/01/16-23:39:29.323 1f1d3 Delete type=2 #11
+2025/01/16-23:39:29.323 1f1d3 Delete type=2 #8
+2025/01/16-23:39:29.323 1f1d3 Delete type=2 #18
+2025/01/17-04:56:18.154 b2e3 Level-0 table #21: started
+2025/01/17-04:56:18.160 b2e3 Level-0 table #21: 12987 bytes OK
+2025/01/17-04:56:18.166 b2e3 Delete type=0 #17
+2025/01/17-09:29:45.688 a50b Level-0 table #23: started
+2025/01/17-09:29:45.696 a50b Level-0 table #23: 14070 bytes OK
+2025/01/17-09:29:45.702 a50b Delete type=0 #20
+2025/01/17-14:42:24.162 1571f Level-0 table #25: started
+2025/01/17-14:42:24.168 1571f Level-0 table #25: 14429 bytes OK
+2025/01/17-14:42:24.174 1571f Delete type=0 #22

@@ -1,0 +1,16 @@
+2025/01/16-16:35:51.937 a303 Reusing MANIFEST /Users/arthurhaliski/Documents/llm-answer-engine/express-api/.wwebjs_auth/session/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2025/01/16-16:35:51.941 a303 Recovering log #8444
+2025/01/16-16:35:51.973 a303 Reusing old log /Users/arthurhaliski/Documents/llm-answer-engine/express-api/.wwebjs_auth/session/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/008444.log 
+2025/01/16-16:35:53.739 15703 Level-0 table #8502: started
+2025/01/16-16:35:53.750 15703 Level-0 table #8502: 674868 bytes OK
+2025/01/16-16:35:53.760 15703 Delete type=0 #8444
+2025/01/16-16:35:53.761 15703 Manual compaction at level-0 from '\x00!\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00"\x00\x00\x00' @ 0 : 0; will stop at '\x00!\x00\x00\x05' @ 13796807 : 1
+2025/01/16-16:35:53.761 15703 Compacting 1@0 + 0@1 files
+2025/01/16-16:35:53.771 15703 Generated table #8503@0: 11255 keys, 237810 bytes
+2025/01/16-16:35:53.775 15703 Generated table #8504@0: 1034 keys, 77179 bytes
+2025/01/16-16:35:53.779 15703 Generated table #8505@0: 236 keys, 7364 bytes
+2025/01/16-16:35:53.782 15703 Generated table #8506@0: 131 keys, 3027 bytes
+2025/01/16-16:35:53.782 15703 Compacted 1@0 + 0@1 files => 325380 bytes
+2025/01/16-16:35:53.789 15703 compacted to: files[ 0 4 54 35 0 0 0 ]
+2025/01/16-16:35:53.789 15703 Delete type=2 #8502
+2025/01/16-16:35:53.790 15703 Manual compaction at level-0 from '\x00!\x00\x00\x05' @ 13796807 : 1 .. '\x00"\x00\x00\x00' @ 0 : 0; will stop at (end)
