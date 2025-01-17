@@ -42,6 +42,11 @@ import winston from 'winston';
 import sqlite3 from 'sqlite3';
 import { open as openDb } from 'sqlite'; // sqlite wrapper for promises
 import fs from 'fs';
+import { parseNFeXML, parseNFCeXML, validateNFeStructure } from './parsers/nfeParser.js';
+import { monitorDiarioOficial, checkForTaxUpdates } from './monitor/diarioOficialScraper.js';
+import { monitorComplianceObligations, checkUserCompliance } from './compliance/monitor.js';
+import { validateCNPJ, validateNFeWithSEFAZ, consultNFSe } from './integrations/govApis.js';
+import cron from 'node-cron';
 
 const { Client, LocalAuth, MessageMedia } = pkg;
 
@@ -115,6 +120,18 @@ async function initDb() {
             month INTEGER,
             year INTEGER,
             reportData TEXT,
+            createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (userId) REFERENCES users (id)
+        );
+    `);
+
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS compliance_warnings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            userId INTEGER,
+            type TEXT,
+            message TEXT,
+            severity TEXT,
             createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (userId) REFERENCES users (id)
         );
@@ -215,29 +232,43 @@ async function processDocument(buffer, mimeType, messageContext = {}) {
     logger.info('Starting document processing', { mimeType });
 
     try {
-        // Extract text from the file using Textract
-        const textractResponse = await textract.detectDocumentText({
-            Document: { Bytes: buffer }
-        }).promise();
+        let documentData;
 
-        // Interpret the extracted text with GPT
-        const documentData = await extractDocumentData(textractResponse);
+        // Se for XML, usa parser específico
+        if (mimeType === 'application/xml' || mimeType.includes('xml')) {
+            const xmlData = buffer.toString('utf-8');
+            
+            // Tenta identificar se é NFe ou NFCe pelo conteúdo
+            if (xmlData.includes('<NFe>')) {
+                documentData = await parseNFeXML(xmlData);
+                await validateNFeStructure(documentData);
+            } else if (xmlData.includes('<NFCe>')) {
+                documentData = await parseNFCeXML(xmlData);
+            }
+        } else {
+            // Usa Textract para outros tipos de documento
+            const textractResponse = await textract.detectDocumentText({
+                Document: { Bytes: buffer }
+            }).promise();
 
-        // If we have user context, store doc in DB
+            documentData = await extractDocumentData(textractResponse);
+        }
+
+        // Se temos contexto do usuário, armazena doc no DB
         if (messageContext.userId) {
             await storeDocumentInDb(messageContext.userId, documentData);
         }
 
-        // Search relevant tax rules
+        // Busca regras tributárias relevantes
         const taxRules = await searchTaxRules(
             `${documentData.documentType} ${documentData.operationType} ${documentData.state}`,
             documentData.documentType
         );
 
-        // Calculate taxes
+        // Calcula impostos
         const taxCalculation = await calculateTaxesWithRules(documentData, taxRules);
 
-        // Validate compliance
+        // Valida compliance
         const complianceCheck = await validateCompliance(documentData, taxRules);
 
         return {
@@ -498,6 +529,9 @@ async function validateCompliance(documentData, taxRules) {
                 - Tax calculation accuracy
                 - Filing deadlines
                 - Special requirements
+                - Simples Nacional limits
+                - ICMS ST requirements
+                - PIS/COFINS regime compatibility
                 Flag any issues or risks. Return JSON with { status, issues: [], suggestions: [] }`
             },
             {
@@ -513,6 +547,14 @@ async function validateCompliance(documentData, taxRules) {
     let validationResult;
     try {
         validationResult = JSON.parse(completion.choices[0].message.content);
+        
+        // Adiciona verificação de limite do Simples Nacional
+        if (documentData.totalValue > 3600000) {
+            if (!validationResult.issues) validationResult.issues = [];
+            validationResult.issues.push('Possível desenquadramento do Simples Nacional');
+            validationResult.status = 'warning';
+        }
+        
     } catch (jsonError) {
         logger.error('validateCompliance: GPT parse error', { error: jsonError });
         validationResult = {
@@ -710,6 +752,20 @@ async function handleCommand(message, user) {
             await sendHelpMessage(message);
             break;
 
+        case 'compliance':
+            const checks = await checkUserCompliance(user);
+            await sendComplianceStatus(message, checks);
+            break;
+
+        case 'monitor':
+            const warnings = await monitorComplianceObligations(user, db);
+            await message.reply(formatComplianceWarnings(warnings));
+            break;
+
+        case 'onboarding':
+            await startOnboardingFlow(message, user);
+            break;
+
         default:
             await message.reply('Comando não reconhecido. Use !ajuda para ver os comandos disponíveis.');
     }
@@ -850,6 +906,67 @@ async function sendHelpMessage(message) {
         `!alerta on/off - Ativar/desativar alertas\n` +
         `!ajuda - Mostrar este menu\n`
     );
+}
+
+/**
+ * Envia status de compliance
+ */
+async function sendComplianceStatus(message, checks) {
+    let status = '📋 *Status de Compliance*\n\n';
+    
+    checks.forEach(check => {
+        const icon = check.status === 'ok' ? '✅' : '❌';
+        status += `${icon} ${check.type}: ${check.message}\n`;
+    });
+    
+    await message.reply(status);
+}
+
+// Estado da conversa para onboarding
+let conversationState = {};
+
+/**
+ * Inicia fluxo de onboarding
+ */
+async function startOnboardingFlow(message, user) {
+    if (!conversationState[user.id]) {
+        conversationState[user.id] = { step: 0 };
+        await message.reply('Bem-vindo ao TaxiBot! Vamos começar seu cadastro.\n\nPor favor, digite seu CNPJ:');
+    } else {
+        const { step } = conversationState[user.id];
+        
+        if (step === 0) {
+            // Usuário enviou CNPJ
+            const cnpj = message.body;
+            try {
+                await validateCNPJ(cnpj);
+                await db.run('UPDATE users SET cnpj = ? WHERE id = ?', [cnpj, user.id]);
+                conversationState[user.id].step = 1;
+                await message.reply('CNPJ validado! Agora, qual o nome da sua empresa?');
+            } catch (error) {
+                await message.reply('❌ CNPJ inválido. Por favor, tente novamente:');
+            }
+        } else if (step === 1) {
+            // Usuário enviou nome da empresa
+            const companyName = message.body;
+            await db.run('UPDATE users SET companyName = ? WHERE id = ?', [companyName, user.id]);
+            conversationState[user.id].step = 2;
+            await message.reply('Empresa cadastrada! Agora, qual sua Inscrição Estadual? (ou digite "N/A" se não tiver)');
+        } else if (step === 2) {
+            // Usuário enviou IE
+            const ie = message.body;
+            if (ie.toLowerCase() !== 'n/a') {
+                try {
+                    await checkSINTEGRA(ie);
+                    await db.run('UPDATE users SET inscricaoEstadual = ? WHERE id = ?', [ie, user.id]);
+                } catch (error) {
+                    await message.reply('⚠️ Inscrição Estadual com pendências, mas vamos prosseguir.');
+                }
+            }
+            delete conversationState[user.id];
+            await message.reply('✅ Cadastro concluído! Digite !menu para ver todas as opções disponíveis.');
+        }
+    }
 }
 
 /***************************************************************************/
@@ -1146,3 +1263,46 @@ process.on('unhandledRejection', (error) => {
 process.on('uncaughtException', (error) => {
     logger.error('Uncaught exception', { error });
 });
+
+/**
+ * Configurar cron jobs para monitoramento
+ */
+// Monitora Diário Oficial diariamente às 8h
+cron.schedule('0 8 * * *', async () => {
+    try {
+        await checkForTaxUpdates(db, client);
+    } catch (error) {
+        logger.error('Error checking tax updates', { error });
+    }
+});
+
+// Verifica compliance dos usuários diariamente às 3h
+cron.schedule('0 3 * * *', async () => {
+    try {
+        const users = await db.all('SELECT * FROM users');
+        for (const user of users) {
+            const warnings = await monitorComplianceObligations(user, db);
+            if (warnings.length > 0) {
+                const message = formatComplianceWarnings(warnings);
+                await client.sendMessage(user.whatsappId, message);
+            }
+        }
+    } catch (error) {
+        logger.error('Error monitoring compliance', { error });
+    }
+});
+
+/**
+ * Formata warnings de compliance para mensagem
+ */
+function formatComplianceWarnings(warnings) {
+    let message = '⚠️ *Alertas de Compliance*\n\n';
+    
+    warnings.forEach(warning => {
+        const icon = warning.severity === 'high' ? '🚨' : '⚠️';
+        message += `${icon} ${warning.message}\n`;
+    });
+    
+    message += '\nResponda com !detalhes para mais informações.';
+    return message;
+}
